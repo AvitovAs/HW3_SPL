@@ -36,6 +36,8 @@ public class ConnectionImpl<T> implements Connections<T> {
 
     @Override
     public void disconnect(int connectionId) {
+        conconnections.remove(connectionId);
+        
         userChannels.computeIfPresent(connectionId, (k, channelList) -> 
         { 
             for (String channel : channelList){
