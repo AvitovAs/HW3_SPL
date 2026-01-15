@@ -103,7 +103,8 @@ public class Reactor<T> implements Server<T> {
         SocketChannel clientChan = serverChan.accept();
         clientChan.configureBlocking(false);
         MessagingProtocol<T> protocol = protocolFactory.get();
-        ((StompMessagingProtocol<T>)protocol).start(connectionCounter, connections);
+        if (protocol instanceof StompMessagingProtocol)
+            ((StompMessagingProtocol<T>)protocol).start(connectionCounter, connections);
         final NonBlockingConnectionHandler<T> handler = new NonBlockingConnectionHandler<>(
                 readerFactory.get(),
                 protocol,
