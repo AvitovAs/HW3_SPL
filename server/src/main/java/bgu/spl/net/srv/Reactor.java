@@ -104,7 +104,7 @@ public class Reactor<T> implements Server<T> {
         clientChan.configureBlocking(false);
         MessagingProtocol<T> protocol = protocolFactory.get();
         if (protocol instanceof StompMessagingProtocol)
-            ((StompMessagingProtocol<T>)protocol).start(connectionCounter, connections);
+            ((StompMessagingProtocol<T>)protocol).start(connectionCounter, connections); // TODO: will crash, fix
         final NonBlockingConnectionHandler<T> handler = new NonBlockingConnectionHandler<>(
                 readerFactory.get(),
                 protocol,

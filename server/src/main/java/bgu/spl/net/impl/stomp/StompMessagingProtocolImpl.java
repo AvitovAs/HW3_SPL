@@ -1,15 +1,20 @@
 package bgu.spl.net.impl.stomp;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 import bgu.spl.net.api.StompMessagingProtocol;
 import bgu.spl.net.srv.Connections;
 
 public class StompMessagingProtocolImpl implements StompMessagingProtocol<String> {
+    private volatile static AtomicLong messageIdCounter = new AtomicLong(0);
     private boolean shouldTerminate;
     private int connectionId;
     private Connections<String> connections;
     private boolean isConnected;
+    private Map<String, String> subscriptionMap = new HashMap<>();
 
     public StompMessagingProtocolImpl() {
         this.shouldTerminate = false;
@@ -25,6 +30,10 @@ public class StompMessagingProtocolImpl implements StompMessagingProtocol<String
     @Override
     public void process(String message) {
         StompPacket packet = parseMessage(message);
+        if (packet == null) {
+            handleError(packet, "Malformed STOMP frame");
+            return;
+        }
 
         if (!isConnected && !packet.command.equals("CONNECT")) {
             handleError(packet, "Not connected" );
@@ -75,7 +84,15 @@ public class StompMessagingProtocolImpl implements StompMessagingProtocol<String
     }
 
     private void handleDisconnect(StompPacket packet) {
+        String receipt = packet.headers.get("receipt");
+        if (receipt == null)
+            handleError(packet, "Missing receipt header for DISCONNECT");
         
+        shouldTerminate = true;
+        isConnected = false;
+        connections.disconnect(connectionId);
+        subscriptionMap.clear();
+        sendReceipt(receipt);
     }
 
     private void handleSubscribe(StompPacket packet) {
@@ -95,18 +112,63 @@ public class StompMessagingProtocolImpl implements StompMessagingProtocol<String
         }
 
         connections.subscribe(connectionId, destination, subscriptionId);
+        subscriptionMap.put(id, destination);
+
+        String receipt = packet.headers.get("receipt");
+        if (receipt != null)
+            sendReceipt(receipt);
     }
 
     private void handleUnsubscribe(StompPacket packet) {
-        
+        String id = packet.headers.get("id");
+        if (id == null) {
+            handleError(packet, "Missing required headers for UNSUBSCRIBE");
+            return;
+        }
+
+        String destination = subscriptionMap.get(id);
+        if (destination == null) {
+            handleError(packet, "No subscription found for id: " + id);
+            return;
+        }
+
+        connections.unsubscribe(connectionId, destination);
+        subscriptionMap.remove(id);
+
+        String receipt = packet.headers.get("receipt");
+        if (receipt != null)
+            sendReceipt(receipt);
     }
 
     private void handleSend(StompPacket packet) {
-        
+        String destination = packet.headers.get("destination");
+        if (destination == null) {
+            handleError(packet, "Missing destination header for SEND");
+            return;
+        }
+
+        String body = packet.body;
+        for (Integer subscriberId : connections.getChannelSubscribers(destination)) {
+            int subscriptionId = connections.getSubscriptionId(subscriberId, destination);
+            String response = "MESSAGE\nsubscription:" + subscriptionId + "\nmessage-id:" + messageIdCounter + "\ndestination:" + destination + "\n\n" + body + "\u0000";
+            connections.send(subscriberId, response);
+        }
+
+        messageIdCounter.incrementAndGet();
     }
 
     private void handleError(StompPacket packet, String errorMessage) {
-        
+        String receipt = packet.headers.get("receipt");
+        String response = "ERROR\nmessage:" + errorMessage + "\n";
+        if (receipt != null) 
+            response += "receipt-id:" + receipt + "\n";
+
+        response += "\n" + packet.body + "\n\u0000";
+        connections.send(connectionId, response);
+        shouldTerminate = true;
+        isConnected = false;
+        subscriptionMap.clear();
+        connections.disconnect(connectionId);
     }
 
     @Override
@@ -118,6 +180,11 @@ public class StompMessagingProtocolImpl implements StompMessagingProtocol<String
         String command;
         ConcurrentHashMap<String, String> headers;
         String body;
+    }
+
+    private void sendReceipt(String receiptId) {
+        String response = "RECEIPT\nreceipt-id:" + receiptId + "\n\n\u0000";
+        connections.send(connectionId, response);
     }
 
     private StompPacket parseMessage(String message) {

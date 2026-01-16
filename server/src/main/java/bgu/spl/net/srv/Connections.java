@@ -15,4 +15,6 @@ public interface Connections<T> {
     void unsubscribe(int connectionId, String channel);
 
     int getSubscriptionId(int connectionId, String channel);
+
+    Integer[] getChannelSubscribers(String channel);
 }

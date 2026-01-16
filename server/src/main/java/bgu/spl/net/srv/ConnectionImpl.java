@@ -104,4 +104,9 @@ public class ConnectionImpl<T> implements Connections<T> {
     public int getSubscriptionId(int connectionId, String channel) {
         return userSubscriptions.getOrDefault(connectionId, new ConcurrentHashMap<>()).getOrDefault(channel, -1);
     }
+
+    @Override
+    public Integer[] getChannelSubscribers(String channel) {
+        return (channels.get(channel) == null) ? new Integer[0] : channels.get(channel).toArray(new Integer[channels.get(channel).size()]);
+    }
 }
