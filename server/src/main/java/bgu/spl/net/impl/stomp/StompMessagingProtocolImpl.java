@@ -103,18 +103,23 @@ public class StompMessagingProtocolImpl implements StompMessagingProtocol<String
 
     private void handleDisconnect(StompPacket packet) {
         String receipt = packet.headers.get("receipt");
-        if (receipt == null)
+        if (receipt == null) {
             handleError(packet, "Missing receipt header for DISCONNECT");
+            return;
+        }
+        
+        // Send receipt BEFORE disconnecting
+        sendReceipt(receipt);
         
         // Log logout in database
         Database db = Database.getInstance();
         db.logout(connectionId);
         
+        // Clean up
         shouldTerminate = true;
         isConnected = false;
-        connections.disconnect(connectionId);
         subscriptionMap.clear();
-        sendReceipt(receipt);
+        connections.disconnect(connectionId);
     }
 
     private void handleSubscribe(StompPacket packet) {
