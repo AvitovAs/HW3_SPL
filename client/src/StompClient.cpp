@@ -115,7 +115,7 @@ int main(int argc, char *argv[]) {
             std::string gameName = data.team_a_name + "_" + data.team_b_name;
 
             for (const Event& event : data.events) {
-                std::string frame = protocol.buildSendFrame(gameName, event);
+                std::string frame = protocol.buildSendFrame(gameName, event, file);
                 connectionHandler->sendFrameAscii(frame, '\0');
                 
                 // שמירה מקומית של האירועים שאני דיווחתי

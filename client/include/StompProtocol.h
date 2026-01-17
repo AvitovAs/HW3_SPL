@@ -46,7 +46,7 @@ public:
     std::string buildConnectFrame(std::string host, std::string login, std::string passcode);
     std::string buildSubscribeFrame(std::string destination);
     std::string buildUnsubscribeFrame(std::string destination);
-    std::string buildSendFrame(std::string destination, const Event& event);
+    std::string buildSendFrame(std::string destination, const Event& event, std::string filename);
     std::string buildDisconnectFrame();
 
     // שמירת אירועים (עבור פקודת report ו-MESSAGE)

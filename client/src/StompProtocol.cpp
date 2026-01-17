@@ -85,7 +85,7 @@ std::string StompProtocol::buildUnsubscribeFrame(std::string destination) {
     return ss.str();
 }
 
-std::string StompProtocol::buildSendFrame(std::string destination, const Event& event) {
+std::string StompProtocol::buildSendFrame(std::string destination, const Event& event, std::string filename) {
     std::stringstream body;
     body << "user: " << username << "\n";
     body << "team a: " << event.get_team_a_name() << "\n";
@@ -113,6 +113,7 @@ std::string StompProtocol::buildSendFrame(std::string destination, const Event& 
     std::stringstream ss;
     ss << "SEND\n"
        << "destination:/" << destination << "\n"
+       << "filename:" << filename << "\n"
        << "\n" 
        << body.str() << "\n"; 
     return ss.str();

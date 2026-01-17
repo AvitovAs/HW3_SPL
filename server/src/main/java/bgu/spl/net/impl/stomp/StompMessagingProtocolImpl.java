@@ -7,6 +7,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import bgu.spl.net.api.StompMessagingProtocol;
 import bgu.spl.net.srv.Connections;
+import bgu.spl.net.impl.data.Database;
+import bgu.spl.net.impl.data.LoginStatus;
 
 public class StompMessagingProtocolImpl implements StompMessagingProtocol<String> {
     private volatile static AtomicLong messageIdCounter = new AtomicLong(0);
@@ -14,6 +16,7 @@ public class StompMessagingProtocolImpl implements StompMessagingProtocol<String
     private int connectionId;
     private Connections<String> connections;
     private boolean isConnected;
+    private String currentUser;
     private Map<String, String> subscriptionMap = new HashMap<>();
 
     public StompMessagingProtocolImpl() {
@@ -37,6 +40,7 @@ public class StompMessagingProtocolImpl implements StompMessagingProtocol<String
 
         if (!isConnected && !packet.command.equals("CONNECT")) {
             handleError(packet, "Not connected" );
+            return;
         }
 
         switch (packet.command) {
@@ -76,20 +80,34 @@ public class StompMessagingProtocolImpl implements StompMessagingProtocol<String
             return;
         }
 
-        // TODO: Validate login and passcode
+        LoginStatus status = Database.getInstance().login(connectionId, login, passcode);
+
+        if (status == LoginStatus.WRONG_PASSWORD) {
+            handleError(packet, "Wrong password");
+            return;
+        } else if (status == LoginStatus.ALREADY_LOGGED_IN || status == LoginStatus.CLIENT_ALREADY_CONNECTED) {
+            handleError(packet, "User already logged in");
+            return;
+        }
 
         isConnected = true;
+        currentUser = login;
         String response = "CONNECTED\nversion:1.2\n\n\u0000";
         connections.send(connectionId, response);
     }
 
     private void handleDisconnect(StompPacket packet) {
         String receipt = packet.headers.get("receipt");
-        if (receipt == null)
+        if (receipt == null) {
             handleError(packet, "Missing receipt header for DISCONNECT");
+            return;
+        }
         
+        Database.getInstance().logout(connectionId);
+
         shouldTerminate = true;
         isConnected = false;
+        currentUser = null;
         connections.disconnect(connectionId);
         subscriptionMap.clear();
         sendReceipt(receipt);
@@ -147,6 +165,10 @@ public class StompMessagingProtocolImpl implements StompMessagingProtocol<String
             return;
         }
 
+        if (currentUser != null && packet.headers.containsKey("filename")) {
+            Database.getInstance().trackFileUpload(currentUser, packet.headers.get("filename"), destination);
+        }
+
         String body = packet.body;
         for (Integer subscriberId : connections.getChannelSubscribers(destination)) {
             int subscriptionId = connections.getSubscriptionId(subscriberId, destination);
@@ -165,6 +187,9 @@ public class StompMessagingProtocolImpl implements StompMessagingProtocol<String
 
         response += "\n" + packet.body + "\n\u0000";
         connections.send(connectionId, response);
+        
+        Database.getInstance().logout(connectionId);
+        
         shouldTerminate = true;
         isConnected = false;
         subscriptionMap.clear();
