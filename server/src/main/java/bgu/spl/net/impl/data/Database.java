@@ -5,6 +5,8 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.concurrent.ConcurrentHashMap;
+import org.json.JSONObject;
+import org.json.JSONArray;
 
 public class Database {
 	private final ConcurrentHashMap<String, User> userMap;
@@ -25,11 +27,11 @@ public class Database {
 	}
 
 	/**
-	 * Execute SQL query and return result
+	 * Execute SQL query and return JSONObject result
 	 * @param sql SQL query string
-	 * @return Result string from SQL server
+	 * @return JSONObject with result or error
 	 */
-	private String executeSQL(String sql) {
+	private JSONObject executeSQL(String sql) {
 		try (Socket socket = new Socket(sqlHost, sqlPort);
 			 PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
 			 BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
@@ -45,11 +47,14 @@ public class Database {
 				response.append((char) ch);
 			}
 			
-			return response.toString();
+			return new JSONObject(response.toString());
 			
 		} catch (Exception e) {
 			System.err.println("SQL Error: " + e.getMessage());
-			return "ERROR:" + e.getMessage();
+			JSONObject error = new JSONObject();
+			error.put("status", "error");
+			error.put("message", e.getMessage());
+			return error;
 		}
 	}
 
@@ -73,7 +78,7 @@ public class Database {
 		if (addNewUserCase(connectionId, username, password)) {
 			// Log new user registration in SQL
 			String sql = String.format(
-				"INSERT INTO users (username, password, registration_date) VALUES ('%s', '%s', datetime('now'))",
+				"INSERT INTO users (username, passcode, registration_time) VALUES ('%s', '%s', datetime('now'))",
 				escapeSql(username), escapeSql(password)
 			);
 			executeSQL(sql);
@@ -154,7 +159,7 @@ public class Database {
 	 */
 	public void trackFileUpload(String username, String filename, String gameChannel) {
 		String sql = String.format(
-			"INSERT INTO file_tracking (username, filename, upload_time, game_channel) " +
+			"INSERT INTO uploaded_files (username, filename, upload_time, game_channel) " +
 			"VALUES ('%s', '%s', datetime('now'), '%s')",
 			escapeSql(username), escapeSql(filename), escapeSql(gameChannel)
 		);
@@ -172,73 +177,85 @@ public class Database {
 		// List all users
 		System.out.println("\n1. REGISTERED USERS:");
 		System.out.println(repeat("-", 80));
-		String usersSQL = "SELECT username, registration_date FROM users ORDER BY registration_date";
-		String usersResult = executeSQL(usersSQL);
-		if (usersResult.startsWith("SUCCESS")) {
-			String[] parts = usersResult.split("\\|");
-			if (parts.length > 1) {
-				for (int i = 1; i < parts.length; i++) {
-					System.out.println("   " + parts[i]);
+		String usersSQL = "SELECT username, registration_time FROM users ORDER BY registration_time";
+		JSONObject usersResult = executeSQL(usersSQL);
+		if ("success".equals(usersResult.optString("status"))) {
+			JSONArray rows = usersResult.optJSONArray("rows");
+			if (rows != null && rows.length() > 0) {
+				for (int i = 0; i < rows.length(); i++) {
+					JSONArray row = rows.getJSONArray(i);
+					System.out.printf("   %-20s Registered: %s\n", row.getString(0), row.getString(1));
 				}
 			} else {
 				System.out.println("   No users registered");
 			}
+		} else {
+			System.out.println("   Error: " + usersResult.optString("message"));
 		}
 		
 		// Login history for each user
 		System.out.println("\n2. LOGIN HISTORY:");
 		System.out.println(repeat("-", 80));
 		String loginSQL = "SELECT username, login_time, logout_time FROM login_history ORDER BY username, login_time DESC";
-		String loginResult = executeSQL(loginSQL);
-		if (loginResult.startsWith("SUCCESS")) {
-			String[] parts = loginResult.split("\\|");
-			if (parts.length > 1) {
+		JSONObject loginResult = executeSQL(loginSQL);
+		if ("success".equals(loginResult.optString("status"))) {
+			JSONArray rows = loginResult.optJSONArray("rows");
+			if (rows != null && rows.length() > 0) {
 				String currentUser = "";
-				for (int i = 1; i < parts.length; i++) {
-					String[] fields = parts[i].replace("(", "").replace(")", "").replace("'", "").split(", ");
-					if (fields.length >= 3) {
-						if (!fields[0].equals(currentUser)) {
-							currentUser = fields[0];
-							System.out.println("\n   User: " + currentUser);
-						}
-						System.out.println("      Login:  " + fields[1]);
-						System.out.println("      Logout: " + (fields[2].equals("None") ? "Still logged in" : fields[2]));
+				for (int i = 0; i < rows.length(); i++) {
+					JSONArray row = rows.getJSONArray(i);
+					String username = row.getString(0);
+					String loginTime = row.getString(1);
+					String logoutTime = row.isNull(2) ? "Still logged in" : row.getString(2);
+					
+					if (!username.equals(currentUser)) {
+						currentUser = username;
+						System.out.println("\n   User: " + currentUser);
 					}
+					System.out.println("      Login:  " + loginTime);
+					System.out.println("      Logout: " + logoutTime);
 				}
 			} else {
 				System.out.println("   No login history");
 			}
+		} else {
+			System.out.println("   Error: " + loginResult.optString("message"));
 		}
 		
 		// File uploads for each user
 		System.out.println("\n3. FILE UPLOADS:");
 		System.out.println(repeat("-", 80));
-		String filesSQL = "SELECT username, filename, upload_time, game_channel FROM file_tracking ORDER BY username, upload_time DESC";
-		String filesResult = executeSQL(filesSQL);
-		if (filesResult.startsWith("SUCCESS")) {
-			String[] parts = filesResult.split("\\|");
-			if (parts.length > 1) {
+		String filesSQL = "SELECT username, filename, upload_time, game_channel FROM uploaded_files ORDER BY username, upload_time DESC";
+		JSONObject filesResult = executeSQL(filesSQL);
+		if ("success".equals(filesResult.optString("status"))) {
+			JSONArray rows = filesResult.optJSONArray("rows");
+			if (rows != null && rows.length() > 0) {
 				String currentUser = "";
-				for (int i = 1; i < parts.length; i++) {
-					String[] fields = parts[i].replace("(", "").replace(")", "").replace("'", "").split(", ");
-					if (fields.length >= 4) {
-						if (!fields[0].equals(currentUser)) {
-							currentUser = fields[0];
-							System.out.println("\n   User: " + currentUser);
-						}
-						System.out.println("      File: " + fields[1]);
-						System.out.println("      Time: " + fields[2]);
-						System.out.println("      Game: " + fields[3]);
-						System.out.println();
+				for (int i = 0; i < rows.length(); i++) {
+					JSONArray row = rows.getJSONArray(i);
+					String username = row.getString(0);
+					String filename = row.getString(1);
+					String uploadTime = row.getString(2);
+					String gameChannel = row.getString(3);
+					
+					if (!username.equals(currentUser)) {
+						currentUser = username;
+						System.out.println("\n   User: " + currentUser);
 					}
+					System.out.println("      File: " + filename);
+					System.out.println("      Time: " + uploadTime);
+					System.out.println("      Game: " + gameChannel);
+					System.out.println();
 				}
 			} else {
 				System.out.println("   No files uploaded");
 			}
+		} else {
+			System.out.println("   Error: " + filesResult.optString("message"));
 		}
 		
-	System.out.println(repeat("=", 80));
-}
+		System.out.println(repeat("=", 80));
+	}
 
 private String repeat(String str, int times) {
 	StringBuilder sb = new StringBuilder();

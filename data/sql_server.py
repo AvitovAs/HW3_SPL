@@ -30,15 +30,75 @@ def recv_null_terminated(sock: socket.socket) -> str:
 
 
 def init_database():
-    pass
+    import sqlite3
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    
+    # Users table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            username TEXT PRIMARY KEY,
+            passcode TEXT NOT NULL,
+            registration_time TEXT NOT NULL
+        )
+    ''')
+    
+    # Login history table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS login_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            login_time TEXT NOT NULL,
+            logout_time TEXT,
+            FOREIGN KEY (username) REFERENCES users(username)
+        )
+    ''')
+    
+    # Files table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS uploaded_files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            game_channel TEXT,
+            upload_time TEXT NOT NULL,
+            FOREIGN KEY (username) REFERENCES users(username)
+        )
+    ''')
+    
+    conn.commit()
+    conn.close()
+    print(f"[{SERVER_NAME}] Database initialized")
 
 
 def execute_sql_command(sql_command: str) -> str:
-    return "done"
+    import sqlite3
+    import json
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute(sql_command)
+        conn.commit()
+        rows_affected = cursor.rowcount
+        conn.close()
+        return json.dumps({"status": "success", "rows_affected": rows_affected})
+    except Exception as e:
+        return json.dumps({"status": "error", "message": str(e)})
 
 
 def execute_sql_query(sql_query: str) -> str:
-    return "done"
+    import sqlite3
+    import json
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute(sql_query)
+        columns = [description[0] for description in cursor.description] if cursor.description else []
+        results = cursor.fetchall()
+        conn.close()
+        return json.dumps({"status": "success", "columns": columns, "rows": results})
+    except Exception as e:
+        return json.dumps({"status": "error", "message": str(e)})
 
 
 def handle_client(client_socket: socket.socket, addr):
@@ -52,8 +112,15 @@ def handle_client(client_socket: socket.socket, addr):
 
             print(f"[{SERVER_NAME}] Received:")
             print(message)
-
-            client_socket.sendall(b"done\0")
+            
+            # Determine if it's a query or command
+            sql_upper = message.strip().upper()
+            if sql_upper.startswith('SELECT'):
+                response = execute_sql_query(message)
+            else:
+                response = execute_sql_command(message)
+            
+            client_socket.sendall((response + "\0").encode('utf-8'))
 
     except Exception as e:
         print(f"[{SERVER_NAME}] Error handling client {addr}: {e}")
@@ -66,6 +133,9 @@ def handle_client(client_socket: socket.socket, addr):
 
 
 def start_server(host="127.0.0.1", port=7778):
+    # Initialize database when server starts
+    init_database()
+    
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 

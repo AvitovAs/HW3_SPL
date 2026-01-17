@@ -7,6 +7,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import bgu.spl.net.api.StompMessagingProtocol;
 import bgu.spl.net.srv.Connections;
+import bgu.spl.net.impl.data.Database;
+import bgu.spl.net.impl.data.LoginStatus;
 
 public class StompMessagingProtocolImpl implements StompMessagingProtocol<String> {
     private volatile static AtomicLong messageIdCounter = new AtomicLong(0);
@@ -76,17 +78,37 @@ public class StompMessagingProtocolImpl implements StompMessagingProtocol<String
             return;
         }
 
-        // TODO: Validate login and passcode
-
-        isConnected = true;
-        String response = "CONNECTED\nversion:1.2\n\n\u0000";
-        connections.send(connectionId, response);
+        // Validate login and passcode with Database
+        Database db = Database.getInstance();
+        LoginStatus status = db.login(connectionId, login, passcode);
+        
+        switch (status) {
+            case ADDED_NEW_USER:
+            case LOGGED_IN_SUCCESSFULLY:
+                isConnected = true;
+                String response = "CONNECTED\nversion:1.2\n\n\u0000";
+                connections.send(connectionId, response);
+                break;
+            case ALREADY_LOGGED_IN:
+                handleError(packet, "User already logged in");
+                break;
+            case WRONG_PASSWORD:
+                handleError(packet, "Wrong password");
+                break;
+            case CLIENT_ALREADY_CONNECTED:
+                handleError(packet, "Client already connected");
+                break;
+        }
     }
 
     private void handleDisconnect(StompPacket packet) {
         String receipt = packet.headers.get("receipt");
         if (receipt == null)
             handleError(packet, "Missing receipt header for DISCONNECT");
+        
+        // Log logout in database
+        Database db = Database.getInstance();
+        db.logout(connectionId);
         
         shouldTerminate = true;
         isConnected = false;

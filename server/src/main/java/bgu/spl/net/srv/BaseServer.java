@@ -1,7 +1,6 @@
 package bgu.spl.net.srv;
 
 import bgu.spl.net.api.MessageEncoderDecoder;
-import bgu.spl.net.api.MessagingProtocol;
 import bgu.spl.net.api.StompMessagingProtocol;
 
 import java.io.IOException;
@@ -12,7 +11,7 @@ import java.util.function.Supplier;
 public abstract class BaseServer<T> implements Server<T> {
 
     private final int port;
-    private final Supplier<MessagingProtocol<T>> protocolFactory;
+    private final Supplier<StompMessagingProtocol<T>> protocolFactory;
     private final Supplier<MessageEncoderDecoder<T>> encdecFactory;
     private ServerSocket sock;
     private ConnectionImpl<T> connections;
@@ -20,7 +19,7 @@ public abstract class BaseServer<T> implements Server<T> {
 
     public BaseServer(
             int port,
-            Supplier<MessagingProtocol<T>> protocolFactory,
+            Supplier<StompMessagingProtocol<T>> protocolFactory,
             Supplier<MessageEncoderDecoder<T>> encdecFactory) {
 
         this.port = port;
@@ -43,19 +42,19 @@ public abstract class BaseServer<T> implements Server<T> {
 
                 Socket clientSock = serverSock.accept();
 
-                MessagingProtocol<T> Protocol = protocolFactory.get();
-                if (Protocol instanceof StompMessagingProtocol)
-                    ((StompMessagingProtocol<T>) Protocol).start(connectionCounter, connections);
+                StompMessagingProtocol<T> protocol = protocolFactory.get();
+                protocol.start(connectionCounter, connections);
                 
                 BlockingConnectionHandler<T> handler = new BlockingConnectionHandler<>(
                         clientSock,
                         encdecFactory.get(),
-                        Protocol);
+                        protocol);
 
                 connections.connect(connectionCounter++, handler);
                 execute(handler);
             }
         } catch (IOException ex) {
+            ex.printStackTrace();
         }
 
         System.out.println("server closed!!!");
