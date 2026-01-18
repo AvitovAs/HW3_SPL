@@ -7,7 +7,6 @@
 #include <map>
 #include <mutex>
 
-// מחלקה זו מנהלת את כל הלוגיקה של הפרוטוקול
 class StompProtocol {
 private:
     std::string username;
@@ -16,22 +15,18 @@ private:
     bool isConnectedFlag;
     bool shouldTerminateFlag;
 
-    // מיפויים לשמירת המצב
-    std::map<std::string, int> gameToSubId; // Game Name -> Subscription ID
-    std::map<int, std::string> subIdToGame; // Subscription ID -> Game Name
+    std::map<std::string, int> gameToSubId;
+    std::map<int, std::string> subIdToGame;
     
-    // ניהול Receipts: ReceiptID -> Command/Action Description
     std::map<int, std::string> receiptActions;
 
-    // מבנה נתונים לסיכום משחק: Game Name -> (User Name -> List of Events)
     std::map<std::string, std::map<std::string, std::vector<Event>>> gameStorage;
 
-    std::mutex mtx; // לסנכרון בין הת'רד הראשי לת'רד של הסוקט (אם נדרש)
+    std::mutex mtx; 
 
 public:
     StompProtocol();
 
-    // ניהול חיבור
     void setUsername(std::string name);
     std::string getUsername();
     bool isConnected();
