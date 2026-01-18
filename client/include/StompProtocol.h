@@ -39,24 +39,19 @@ public:
     bool shouldTerminate();
     void setShouldTerminate(bool status);
 
-    // עיבוד הודעות מהשרת
     void processFrame(std::string frame, ConnectionHandler& connectionHandler);
 
-    // פונקציות עזר ליצירת פריימים לשליחה
     std::string buildConnectFrame(std::string host, std::string login, std::string passcode);
     std::string buildSubscribeFrame(std::string destination);
     std::string buildUnsubscribeFrame(std::string destination);
     std::string buildSendFrame(std::string destination, const Event& event, std::string filename);
     std::string buildDisconnectFrame();
 
-    // שמירת אירועים (עבור פקודת report ו-MESSAGE)
     void saveEvent(const Event& event, std::string gameName, std::string user);
     
-    // פונקציית Summary
     std::string getSummary(std::string gameName, std::string user, std::string file);
 
 private:
-    // פונקציות עזר פנימיות
     Event parseEventBody(std::string body);
     void handleMessage(std::string frame);
     void handleReceipt(std::string frame);

@@ -33,8 +33,6 @@ void StompProtocol::setShouldTerminate(bool status) {
     shouldTerminateFlag = status;
 }
 
-// === Frame Generation Methods ===
-
 std::string StompProtocol::buildConnectFrame(std::string host, std::string login, std::string passcode) {
     std::stringstream ss;
     ss << "CONNECT\n"
@@ -52,7 +50,6 @@ std::string StompProtocol::buildSubscribeFrame(std::string destination) {
     receiptIdCounter++;
     int receipt = receiptIdCounter;
 
-    // רישום מקומי
     gameToSubId[destination] = id;
     subIdToGame[id] = destination;
     receiptActions[receipt] = "joined " + destination;
@@ -68,7 +65,7 @@ std::string StompProtocol::buildSubscribeFrame(std::string destination) {
 
 std::string StompProtocol::buildUnsubscribeFrame(std::string destination) {
     if (gameToSubId.find(destination) == gameToSubId.end()) {
-        return ""; // לא רשום
+        return "";
     }
     int id = gameToSubId[destination];
     receiptIdCounter++;
@@ -131,14 +128,11 @@ std::string StompProtocol::buildDisconnectFrame() {
     return ss.str();
 }
 
-// === Processing Incoming Frames ===
-
 void StompProtocol::processFrame(std::string frame, ConnectionHandler& connectionHandler) {
     std::stringstream ss(frame);
     std::string command;
     std::getline(ss, command);
 
-    // ניקוי תווים לא רצויים מהפקודה (כמו \r)
     if (!command.empty() && command.back() == '\r') command.pop_back();
 
     if (command == "CONNECTED") {
@@ -178,7 +172,6 @@ void StompProtocol::handleMessage(std::string frame) {
     std::stringstream bodyStream(body);
     if (std::getline(bodyStream, line) && line.find("user:") != std::string::npos) {
          userInMessage = line.substr(line.find(":") + 2);
-         // ניקוי רווחים
          size_t first = userInMessage.find_first_not_of(' ');
          if (std::string::npos != first) userInMessage = userInMessage.substr(first);
          if (!userInMessage.empty() && userInMessage.back() == '\r') userInMessage.pop_back();

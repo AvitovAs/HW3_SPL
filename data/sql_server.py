@@ -35,7 +35,6 @@ def init_database():
     c = conn.cursor()
     c.execute("PRAGMA foreign_keys = ON;")
     
-    # Create tables
     c.execute('''CREATE TABLE IF NOT EXISTS users (
                  username TEXT PRIMARY KEY,
                  password TEXT NOT NULL,

@@ -108,9 +108,9 @@ public class StompMessagingProtocolImpl implements StompMessagingProtocol<String
         shouldTerminate = true;
         isConnected = false;
         currentUser = null;
-        connections.disconnect(connectionId);
         subscriptionMap.clear();
         sendReceipt(receipt);
+        connections.disconnect(connectionId);
     }
 
     private void handleSubscribe(StompPacket packet) {
