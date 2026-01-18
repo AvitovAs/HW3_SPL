@@ -11,7 +11,8 @@ the methods below.
 import socket
 import sys
 import threading
-
+import sqlite3
+import os
 
 SERVER_NAME = "STOMP_PYTHON_SQL_SERVER"  # DO NOT CHANGE!
 DB_FILE = "stomp_server.db"              # DO NOT CHANGE!
@@ -30,19 +31,68 @@ def recv_null_terminated(sock: socket.socket) -> str:
 
 
 def init_database():
-    pass
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute("PRAGMA foreign_keys = ON;")
+    
+    # Create tables
+    c.execute('''CREATE TABLE IF NOT EXISTS users (
+                 username TEXT PRIMARY KEY,
+                 password TEXT NOT NULL,
+                 registration_date DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+    
+    c.execute('''CREATE TABLE IF NOT EXISTS login_history (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 username TEXT NOT NULL,
+                 login_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+                 logout_time DATETIME,
+                 FOREIGN KEY(username) REFERENCES users(username))''')
+    
+    c.execute('''CREATE TABLE IF NOT EXISTS file_tracking (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 username TEXT NOT NULL,
+                 filename TEXT NOT NULL,
+                 upload_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+                 game_channel TEXT,
+                 FOREIGN KEY(username) REFERENCES users(username))''')
+    
+    conn.commit()
+    conn.close()
+    print(f"[{SERVER_NAME}] Database initialized.", flush=True)
 
 
 def execute_sql_command(sql_command: str) -> str:
-    return "done"
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute(sql_command)
+        conn.commit()
+        conn.close()
+        return "done"
+
+    except sqlite3.Error as e:
+        return f"ERROR: {str(e)}"
 
 
 def execute_sql_query(sql_query: str) -> str:
-    return "done"
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        c.execute(sql_query)
+        rows = c.fetchall()
+        conn.close()
+
+        response = "SUCCESS"
+        for row in rows:
+            response += "|" + str(row)
+        return response
+        
+    except sqlite3.Error as e:
+        return f"ERROR: {str(e)}"
 
 
 def handle_client(client_socket: socket.socket, addr):
-    print(f"[{SERVER_NAME}] Client connected from {addr}")
+    print(f"[{SERVER_NAME}] Client connected from {addr}", flush=True)
 
     try:
         while True:
@@ -50,30 +100,35 @@ def handle_client(client_socket: socket.socket, addr):
             if message == "":
                 break
 
-            print(f"[{SERVER_NAME}] Received:")
-            print(message)
+            print(f"[{SERVER_NAME}] SQL: {message}", flush=True)
 
-            client_socket.sendall(b"done\0")
+            if message.strip().upper().startswith("SELECT"):
+                response = execute_sql_query(message)
+            else:
+                response = execute_sql_command(message)
+
+            client_socket.sendall(response.encode('utf-8') + b"\0")
 
     except Exception as e:
-        print(f"[{SERVER_NAME}] Error handling client {addr}: {e}")
+        print(f"[{SERVER_NAME}] Error handling client {addr}: {e}", flush=True)
     finally:
         try:
             client_socket.close()
         except Exception:
             pass
-        print(f"[{SERVER_NAME}] Client {addr} disconnected")
+        print(f"[{SERVER_NAME}] Client {addr} disconnected", flush=True)
 
 
 def start_server(host="127.0.0.1", port=7778):
+    init_database()
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
     try:
         server_socket.bind((host, port))
         server_socket.listen(5)
-        print(f"[{SERVER_NAME}] Server started on {host}:{port}")
-        print(f"[{SERVER_NAME}] Waiting for connections...")
+        print(f"[{SERVER_NAME}] Server started on {host}:{port}", flush=True)
+        print(f"[{SERVER_NAME}] Waiting for connections...", flush=True)
 
         while True:
             client_socket, addr = server_socket.accept()
@@ -85,7 +140,7 @@ def start_server(host="127.0.0.1", port=7778):
             t.start()
 
     except KeyboardInterrupt:
-        print(f"\n[{SERVER_NAME}] Shutting down server...")
+        print(f"\n[{SERVER_NAME}] Shutting down server...", flush=True)
     finally:
         try:
             server_socket.close()
