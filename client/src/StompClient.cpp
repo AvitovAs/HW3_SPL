@@ -37,6 +37,9 @@ int main(int argc, char *argv[]) {
         ss >> command;
 
         if (command == "login") {
+            protocol.setShouldTerminate(false);
+            protocol.setConnected(false);
+            
             if (protocol.isConnected()) {
                 std::cout << "The client is already logged in, log out before trying again" << std::endl;
                 continue;
