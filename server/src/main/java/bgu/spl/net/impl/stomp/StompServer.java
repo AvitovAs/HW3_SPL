@@ -14,7 +14,6 @@ public class StompServer {
         int port = Integer.parseInt(args[0]);
 
         if (mode.equals("TPC")) {           
-        // Thread-per-client server
             Server.threadPerClient(
                 port,
                 StompMessagingProtocolImpl::new,
