@@ -5,26 +5,32 @@ import bgu.spl.net.srv.Server;
 public class StompServer {
 
     public static void main(String[] args) {
-        if (args.length < 1) {
-            System.out.println("Usage: java StompServer <port>");
+        if (args.length < 2) {
+            System.out.println("Usage: java StompServer <port> <mode>");
             return;
         }
-
+        
+        String mode = args[1];
         int port = Integer.parseInt(args[0]);
 
+        if (mode.equals("TPC")) {           
         // Thread-per-client server
-        Server.threadPerClient(
+            Server.threadPerClient(
                 port,
                 StompMessagingProtocolImpl::new,
                 StompEncoderDecoderImpl::new
-        ).serve();
-
-        // OR Reactor pattern:
-        // Server.reactor(
-        //         Runtime.getRuntime().availableProcessors(),
-        //         port,
-        //         StompMessagingProtocolImpl::new,
-        //         StompEncoderDecoderImpl::new
-        // ).serve();
+            ).serve();
+        }
+        else if (mode.equals("REACTOR")) {
+            Server.reactor(
+                Runtime.getRuntime().availableProcessors(),
+                port,
+                StompMessagingProtocolImpl::new,
+                StompEncoderDecoderImpl::new
+            ).serve();
+        }
+        else{
+            System.out.println("Invalid mode. Use 'TPC' or 'REACTOR'.");
+        }
     }
 }

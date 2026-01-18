@@ -11,7 +11,7 @@
             "mainClass": "bgu.spl.net.impl.stomp.StompServer",
             "projectName": "server",
             "preLaunchTask": "mvn compile",
-            "args": ["7777"]
+            "args": ["7777", "REACTOR"]
         },
         {
             "type": "java",
