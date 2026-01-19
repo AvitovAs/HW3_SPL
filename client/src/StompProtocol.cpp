@@ -177,10 +177,13 @@ void StompProtocol::handleMessage(std::string frame) {
          if (!userInMessage.empty() && userInMessage.back() == '\r') userInMessage.pop_back();
     }
 
-    if (userInMessage != username) {
-        saveEvent(event, destination, userInMessage);
-        std::cout << "Received message from " << userInMessage << " in topic " << destination << std::endl;
-    }
+    // FIX 1 & 2: Process message even if from self, and print full content
+    saveEvent(event, destination, userInMessage);
+    
+    std::cout << "Displaying event from user " << userInMessage << " in topic " << destination << ":" << std::endl;
+    std::cout << "Event Name: " << event.get_name() << std::endl;
+    std::cout << "Time: " << event.get_time() << std::endl;
+    std::cout << "Description: " << event.get_discription() << std::endl; 
 }
 
 void StompProtocol::handleReceipt(std::string frame) {

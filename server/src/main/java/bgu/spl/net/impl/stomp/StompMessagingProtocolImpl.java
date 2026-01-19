@@ -165,6 +165,11 @@ public class StompMessagingProtocolImpl implements StompMessagingProtocol<String
             return;
         }
 
+        if (!subscriptionMap.containsValue(destination)) {
+            handleError(packet, "User is not subscribed to the destination channel: " + destination);
+            return;
+        }
+        
         if (currentUser != null && packet.headers.containsKey("filename")) {
             Database.getInstance().trackFileUpload(currentUser, packet.headers.get("filename"), destination);
         }
